@@ -1,0 +1,11 @@
+{
+  "timestamp": "20260601_013912",
+  "fixes": [
+    {
+      "action": "创建目录",
+      "target": "examples",
+      "status": "已执行"
+    }
+  ],
+  "skipped": []
+}

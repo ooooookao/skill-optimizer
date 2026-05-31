@@ -1,0 +1,47 @@
+{
+  "skill_name": "skill-optimizer",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "帮我检查一下 ~/.claude/skills/auto-tuner 这个 skill 有没有什么问题",
+      "expected_output": "Agent 应该：1) 读取 SKILL.md 和所有 step 文件；2) 运行 analyze_skill.py 获取结构分；3) 用 LLM 评估内容质量；4) 合并双通道评分展示报告；5) 按严重程度列出问题清单",
+      "files": []
+    },
+    {
+      "id": 1,
+      "prompt": "这个 skill 怎么样？目录在 C:/Users/test/.claude/skills/my-skill/",
+      "expected_output": "Agent 应该：1) 先确认目录存在；2) 运行分析脚本；3) 运行 LLM 内容评估；4) 展示总分和等级；5) 运行质量门禁；6) 列出问题清单；7) 询问用户是否需要优化",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "帮我优化这个 skill，它 SKILL.md 太长了，step 文件也没 checklist",
+      "expected_output": "Agent 应该：1) 先分析确认问题；2) 用 fix_skill.py --dry-run 预览修复计划；3) 展示给用户确认；4) 执行修复；5) 展示前后对比（含结构分+内容分）；6) 运行质量门禁验证",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "我的 skill 评分只有 60 分，帮我全面优化",
+      "expected_output": "Agent 应该：1) 分析低分原因；2) 按优先级列出问题（架构>质量>体验）；3) 确认优化范围；4) dry-run 预览；5) 执行自动修复；6) 手动修复内容质量问题；7) 前后对比；8) 门禁验证",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "帮我调研一下市面上有哪些 skill 优化工具，然后改进我们的 optimizer",
+      "expected_output": "Agent 应该：1) 确认调研范围（2个场景）；2) 启动 2 个子 agent 并行调研；3) 生成竞品矩阵；4) 展示给用户确认；5) 迁移分析；6) 体验优化建议；7) 整合报告；8) 提出优化方向",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "看看这个 skill 的 description 写得好不好，触发条件准不准",
+      "expected_output": "Agent 应该：1) 读取 SKILL.md 的 frontmatter；2) 用 LLM评估指南中的 prompt 模板评估 description；3) 评估触发清晰度、歧义风险、覆盖度；4) 给出具体改进建议",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "我想对比一下优化前后的效果",
+      "expected_output": "Agent 应该：1) 运行 compare_versions.py；2) 展示上次和本次的修复数量对比；3) 如果有足够数据，展示趋势",
+      "files": []
+    }
+  ]
+}
