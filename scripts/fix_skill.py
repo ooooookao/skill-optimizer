@@ -134,15 +134,26 @@ def analyze_and_fix(skill_dir: str, dry_run: bool = False) -> dict:
         for step_file in steps_dir.glob("step*.md"):
             step_content = step_file.read_text(encoding="utf-8")
             if "- [ ]" not in step_content and "- [x]" not in step_content:
-                # 从标题生成 checklist
-                title_match = re.search(r"^# Step \d+: (.+)$", step_content, re.MULTILINE)
-                title = title_match.group(1) if title_match else "未知步骤"
+                # 从 ### 标题提取有意义的 checklist 项
+                h3_headings = re.findall(r"^### .+$", step_content, re.MULTILINE)
+                checklist_items = []
+                for h in h3_headings:
+                    # 去掉 ### 前缀，转为 checklist 项
+                    item_text = h.lstrip("#").strip()
+                    # 去掉开头的数字编号（如 "1. xxx" → "xxx"）
+                    item_text = re.sub(r"^\d+\.?\s*", "", item_text)
+                    if item_text:
+                        checklist_items.append(f"- [ ] {item_text}")
+
+                # 如果没找到 ### 标题，用占位符
+                if not checklist_items:
+                    checklist_items = ["- [ ] 步骤1（待补充）", "- [ ] 步骤2（待补充）", "- [ ] 步骤3（待补充）"]
 
                 # 找到第一个 ## 标题，在前面插入 checklist
                 h2_match = re.search(r"^## ", step_content, re.MULTILINE)
                 if h2_match:
                     insert_pos = h2_match.start()
-                    checklist = f"## 执行清单\n\n- [ ] 步骤1（待补充）\n- [ ] 步骤2（待补充）\n- [ ] 步骤3（待补充）\n\n"
+                    checklist = "## 执行清单\n\n" + "\n".join(checklist_items) + "\n\n"
                     new_content = step_content[:insert_pos] + checklist + step_content[insert_pos:]
 
                     if not dry_run:

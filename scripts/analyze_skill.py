@@ -7,11 +7,20 @@ Skill 架构分析脚本。
 
 检查维度：
   1. SKILL.md 行数（建议 ≤200）
-  2. step 文件是否有执行清单
-  3. 参考资料格式（是否是速查表）
-  4. 文件组织合理性
-  5. frontmatter 完整性
-  6. 跨文件重复检测
+  2. frontmatter 完整性（name + description）
+  3. step 文件执行清单
+  4. step 文件 frontmatter
+  5. 参考资料格式（是否是速查表）
+  6. 目录完整性（templates/scripts/examples）
+  7. README.md 存在性
+  8. 跨文件重复检测
+  9. 工作流导航
+  10. 触发条件
+  11. 强制拦截（Gate）
+  12. 工作区权限配置
+  13. 经验积累/学习机制
+  14. 熔断机制
+  15. 用户选择机制
 """
 
 from __future__ import annotations
@@ -43,7 +52,7 @@ def analyze_skill(skill_dir: str) -> dict:
     # 行数检查
     if line_count > 300:
         issues.append({"severity": "high", "category": "架构", "issue": f"SKILL.md 有 {line_count} 行（建议 ≤200），应拆到 steps/"})
-        score -= 15
+        score -= 10
     elif line_count > 200:
         issues.append({"severity": "medium", "category": "架构", "issue": f"SKILL.md 有 {line_count} 行（建议 ≤200），考虑精简"})
         score -= 5
@@ -127,7 +136,7 @@ def analyze_skill(skill_dir: str) -> dict:
     examples_dir = skill_path / "examples"
     if not examples_dir.exists():
         issues.append({"severity": "low", "category": "质量", "issue": "没有 examples/ 目录，建议提供示例"})
-        score -= 3
+        score -= 5
 
     # ── 检查 README ──────────────────────────────────────────────
     readme_path = skill_path / "README.md"
@@ -167,6 +176,49 @@ def analyze_skill(skill_dir: str) -> dict:
                 issues.append({"severity": "medium", "category": "Token效率", "issue": f"{file_names[i]} 和 {file_names[j]} 有 {len(common)} 行重复内容"})
                 score -= 5
 
+    # ── 检查子 agent 使用（复杂 skill） ──────────────────────────
+    # 复杂 skill（≥5 步 或 提到并行/批处理）应使用子 agent 做上下文隔离和并行
+    if steps_dir.exists():
+        step_count = len(list(steps_dir.glob("step*.md")))
+    else:
+        step_count = 0
+
+    content_lower_for_sa = content.lower()
+    is_complex = step_count >= 5
+    if not is_complex:
+        complexity_keywords = ["并行", "parallel", "批量", "batch", "同时执行", "多个子"]
+        if any(kw in content_lower_for_sa for kw in complexity_keywords):
+            is_complex = True
+
+    if is_complex:
+        has_subagent = False
+        subagent_keywords = ["子agent", "子 agent", "sub-agent", "subagent", "spawn",
+                             "background=true", "并行执行", "并行提取", "子agent并行"]
+        # 检查 SKILL.md
+        if any(kw in content_lower_for_sa for kw in subagent_keywords):
+            has_subagent = True
+        # 检查 step 文件
+        if not has_subagent and steps_dir.exists():
+            for step_file in steps_dir.glob("step*.md"):
+                step_content = step_file.read_text(encoding="utf-8").lower()
+                if any(kw in step_content for kw in subagent_keywords):
+                    has_subagent = True
+                    break
+        # 检查 references
+        if not has_subagent:
+            refs_dir_for_sa = skill_path / "references"
+            if refs_dir_for_sa.exists():
+                for ref_file in refs_dir_for_sa.glob("*.md"):
+                    ref_content = ref_file.read_text(encoding="utf-8").lower()
+                    if any(kw in ref_content for kw in subagent_keywords):
+                        has_subagent = True
+                        break
+
+        if not has_subagent:
+            issues.append({"severity": "low", "category": "Token效率",
+                           "issue": f"复杂 skill（{step_count} 步）未使用子 agent，主 agent 上下文易膨胀"})
+            score -= 2
+
     # ── 检查工作流导航 ────────────────────────────────────────────
     if "步骤" not in content and "step" not in content.lower() and "流程" not in content:
         issues.append({"severity": "medium", "category": "架构", "issue": "SKILL.md 缺少工作流导航"})
@@ -176,6 +228,21 @@ def analyze_skill(skill_dir: str) -> dict:
     if "触发" not in content and "trigger" not in content.lower() and "何时" not in content:
         issues.append({"severity": "medium", "category": "质量", "issue": "SKILL.md 缺少触发条件说明"})
         score -= 5
+
+    # ── 检查强制拦截（Gate） ─────────────────────────────────────
+    has_gate = False
+    gate_keywords = ["通过条件", "不可跳过", "⚠️", "Gate", "自检", "不能进入"]
+
+    if steps_dir.exists():
+        for step_file in steps_dir.glob("step*.md"):
+            step_content = step_file.read_text(encoding="utf-8")
+            if any(kw in step_content for kw in gate_keywords):
+                has_gate = True
+                break
+
+    if not has_gate:
+        issues.append({"severity": "low", "category": "体验", "issue": "step 文件缺少强制拦截（Gate），agent 可能跳步"})
+        score -= 3
 
     # ── 检查工作区权限配置 ────────────────────────────────────────
     has_permission_config = False
@@ -205,6 +272,104 @@ def analyze_skill(skill_dir: str) -> dict:
 
     if not has_permission_config:
         issues.append({"severity": "medium", "category": "体验", "issue": "缺少工作区权限配置流程，用户需逐一确认权限弹窗"})
+        score -= 5
+
+    # ── 检查经验积累/学习机制 ─────────────────────────────────────
+    has_learning = False
+    learning_keywords = [
+        "experience", "经验积累", "经验库", "历史记录", "历史追踪",
+        "library.json", "库", "复用", "跨项目经验", "反馈循环",
+        "越用越聪明", "跨项目复用", "通用库", "world-library",
+        "optimizer_history", ".history", "经验迁移",
+    ]
+
+    # 检查 SKILL.md
+    if any(kw in content_lower for kw in learning_keywords):
+        has_learning = True
+
+    # 检查 step 文件
+    if not has_learning and steps_dir.exists():
+        for step_file in steps_dir.glob("step*.md"):
+            step_content = step_file.read_text(encoding="utf-8").lower()
+            if any(kw in step_content for kw in learning_keywords):
+                has_learning = True
+                break
+
+    # 检查 references 目录
+    refs_dir_for_learn = skill_path / "references"
+    if not has_learning and refs_dir_for_learn.exists():
+        for ref_file in refs_dir_for_learn.glob("*.md"):
+            ref_content = ref_file.read_text(encoding="utf-8").lower()
+            if any(kw in ref_content for kw in learning_keywords):
+                has_learning = True
+                break
+
+    # 检查是否存在经验/知识库文件
+    if not has_learning:
+        learning_paths = [
+            skill_path / "assets" / "world-library.json",
+            skill_path / "experience",
+            skill_path / "references" / "experience.md",
+        ]
+        for lp in learning_paths:
+            if lp.exists():
+                has_learning = True
+                break
+        # 检查 assets 下是否有 library 类 json
+        assets_dir = skill_path / "assets"
+        if not has_learning and assets_dir.exists():
+            for f in assets_dir.glob("*library*"):
+                has_learning = True
+                break
+            for f in assets_dir.glob("*库*"):
+                has_learning = True
+                break
+
+    if not has_learning:
+        issues.append({"severity": "low", "category": "质量", "issue": "缺少经验积累机制，skill 无法越用越聪明"})
+        score -= 3
+
+    # ── 检查熔断机制 ─────────────────────────────────────────────
+    has_circuit_breaker = False
+    cb_keywords = ["熔断", "circuit", "降级", "放弃条件", "终止条件", "最大重试"]
+
+    if any(kw in content_lower for kw in cb_keywords):
+        has_circuit_breaker = True
+
+    if not has_circuit_breaker and steps_dir.exists():
+        for step_file in steps_dir.glob("step*.md"):
+            step_content = step_file.read_text(encoding="utf-8").lower()
+            if any(kw in step_content for kw in cb_keywords):
+                has_circuit_breaker = True
+                break
+
+    if not has_circuit_breaker and refs_dir_for_learn.exists():
+        for ref_file in refs_dir_for_learn.glob("*.md"):
+            ref_content = ref_file.read_text(encoding="utf-8").lower()
+            if any(kw in ref_content for kw in cb_keywords):
+                has_circuit_breaker = True
+                break
+
+    if not has_circuit_breaker:
+        issues.append({"severity": "medium", "category": "质量", "issue": "缺少熔断机制，失败时可能无限重试"})
+        score -= 5
+
+    # ── 检查用户选择机制 ─────────────────────────────────────────
+    has_user_choice = False
+    uc_keywords = ["选项", "选择", "利弊", "用户确认", "用户决定", "让用户", "询问用户"]
+
+    if any(kw in content_lower for kw in uc_keywords):
+        has_user_choice = True
+
+    if not has_user_choice and steps_dir.exists():
+        for step_file in steps_dir.glob("step*.md"):
+            step_content = step_file.read_text(encoding="utf-8").lower()
+            if any(kw in step_content for kw in uc_keywords):
+                has_user_choice = True
+                break
+
+    if not has_user_choice:
+        issues.append({"severity": "medium", "category": "体验", "issue": "缺少用户选择机制，策略性决策未交给用户"})
         score -= 5
 
     return {"score": max(score, 0), "issues": issues}

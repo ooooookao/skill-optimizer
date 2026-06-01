@@ -10,8 +10,9 @@
 默认门禁条件（可通过 --config 自定义）：
   - SKILL.md ≤ 200 行
   - 每个 step 文件有 checklist
-  - 总分 ≥ 80
+  - 总分 ≥ 75（结构60 + 内容40）
   - 无严重问题
+  - 高危问题 ≤ 2
 """
 
 from __future__ import annotations
@@ -22,12 +23,13 @@ import sys
 from pathlib import Path
 
 # 复用 analyze_skill 的分析逻辑
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from analyze_skill import analyze_skill
 
 
 DEFAULT_GATE = {
     "max_skill_md_lines": 200,
-    "min_score": 80,
+    "min_score": 75,
     "max_critical_issues": 0,
     "max_high_issues": 2,
     "require_step_checklists": True,
@@ -47,7 +49,7 @@ def check_gate(skill_dir: str, gate: dict, content_score: int | None = None) -> 
     """检查是否满足门禁条件。
 
     Args:
-        content_score: LLM 内容评估分数（满分 30）。如果提供，门禁检查合并分数。
+        content_score: LLM 内容评估分数（满分 40）。如果提供，门禁检查合并分数。
     """
     result = analyze_skill(skill_dir)
     checks = []
@@ -68,22 +70,30 @@ def check_gate(skill_dir: str, gate: dict, content_score: int | None = None) -> 
         if not check_passed:
             passed = False
 
-    # 计算总分：结构分（脚本满分100→映射到70）+ 内容分（满分30）
+    # 计算总分：结构分（脚本满分100→映射到60）+ 内容分（满分40）
     raw_score = result["score"]
-    structure_score = round(raw_score * 0.7)  # 映射到 70 分制
+    structure_score = round(raw_score * 0.6)  # 映射到 60 分制
     if content_score is not None:
         total_score = structure_score + content_score
-        score_label = f"{total_score}/100（结构{structure_score}/70+内容{content_score}/30，原始{raw_score}）"
+        score_label = f"{total_score}/100（结构{structure_score}/60+内容{content_score}/40，原始{raw_score}）"
     else:
         total_score = structure_score
-        score_label = f"{total_score}/70（仅结构分，原始{raw_score}）"
+        score_label = f"{total_score}/60（仅结构分，原始{raw_score}）"
 
     # 检查总分
-    min_score = gate.get("min_score", 80)
-    score_passed = total_score >= min_score
+    min_score = gate.get("min_score", 75)
+    if content_score is not None:
+        # 有内容分：总分满分 100，门禁要求 75
+        score_passed = total_score >= min_score
+        condition_label = f"≥ {min_score}"
+    else:
+        # 无内容分：结构分满分 60，门禁按比例缩放（75 * 0.6 = 45）
+        min_structure_score = round(min_score * 0.6)
+        score_passed = total_score >= min_structure_score
+        condition_label = f"≥ {min_structure_score}（仅结构分）"
     checks.append({
         "name": "总分",
-        "condition": f"≥ {min_score}",
+        "condition": condition_label,
         "actual": score_label,
         "passed": score_passed,
     })
@@ -136,7 +146,28 @@ def check_gate(skill_dir: str, gate: dict, content_score: int | None = None) -> 
             if not checklist_passed:
                 passed = False
 
-    return {"passed": passed, "score": total_score, "structure_score": structure_score, "checks": checks}
+    # 检查 step 文件 frontmatter
+    if gate.get("require_frontmatter", True):
+        steps_dir = Path(skill_dir) / "steps"
+        if steps_dir.exists():
+            step_files = list(steps_dir.glob("step*.md"))
+            missing_fm = []
+            for sf in step_files:
+                content = sf.read_text(encoding="utf-8")
+                if not content.startswith("---"):
+                    missing_fm.append(sf.name)
+            fm_passed = len(missing_fm) == 0
+            checks.append({
+                "name": "step 文件 frontmatter",
+                "condition": "全部有",
+                "actual": f"{len(missing_fm)} 个缺失" if missing_fm else "全部有",
+                "passed": fm_passed,
+            })
+            if not fm_passed:
+                passed = False
+
+    max_score = 100 if content_score is not None else 60
+    return {"passed": passed, "score": total_score, "max_score": max_score, "structure_score": structure_score, "checks": checks}
 
 
 def format_report(gate_result: dict) -> str:
@@ -148,7 +179,8 @@ def format_report(gate_result: dict) -> str:
     else:
         lines.append("门禁结果: 不通过 [FAIL]")
 
-    lines.append(f"总分: {gate_result['score']}/100")
+    max_score = gate_result.get("max_score", 100)
+    lines.append(f"总分: {gate_result['score']}/{max_score}")
     lines.append("")
 
     for check in gate_result["checks"]:

@@ -46,7 +46,19 @@
     {
       "id": 7,
       "prompt": "帮我设计一个新的 skill，用来自动跑测试",
-      "expected_output": "Agent 应该：1) 确认工作区目录；2) 询问用户是否自动配置全部权限；3) 如果用户选是，写入 .claude/settings.json 配置所需工具权限（合并写入）；4) 如果用户选否，正常逐个确认；5) 生成的 SKILL.md 中应包含工作区权限配置流程",
+      "expected_output": "Agent 应该：1) 确认工作区目录；2) 询问用户是否自动配置所需权限；3) 如果用户选是，写入 .claude/settings.json 配置所需工具权限（合并写入）；4) 如果用户选否，正常逐个确认；5) 生成的 SKILL.md 中应包含工作区权限配置流程；6) 建议加入经验积累机制",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "只帮我看看这个 skill 有什么问题，先不改",
+      "expected_output": "Agent 应该：1) 只执行分析和评分，不执行修复；2) 展示问题清单和评分报告；3) 询问用户是否需要优化",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "这个 skill 目录不存在：/tmp/nonexistent-skill/",
+      "expected_output": "Agent 应该：1) 检测目录不存在；2) 提示用户路径错误；3) 请求正确路径，不崩溃",
       "files": []
     }
   ]
