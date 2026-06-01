@@ -82,6 +82,28 @@ Description：[description]
 - 改进建议：[列表]
 ```
 
+### 评估 README.md 与项目同步度
+
+```
+请评估以下 skill 的 README.md 是否与实际项目保持同步。
+
+README 内容：[readme_content]
+SKILL.md 内容：[skill_content]
+目录结构：[directory_listing]
+
+评估维度：
+1. 功能描述是否准确？（README 说的功能 SKILL.md 里有没有？SKILL.md 有的功能 README 有没有提到？）
+2. 工作流是否过时？（README 描述的步骤和 step 文件是否一致？）
+3. 文件结构是否一致？（README 列的文件树和实际目录是否匹配？）
+4. 使用方式是否正确？（示例命令/触发条件是否和 SKILL.md 的触发条件一致？）
+
+输出格式：
+- 同步度：1-5分（5=完全同步，3=部分过时，1=严重脱节）
+- 过时项：[列表，每项说明哪里不同步]
+- 缺失项：[列表，README 应该有但没有的内容]
+- 改进建议：[列表]
+```
+
 ---
 
 ## 使用方式

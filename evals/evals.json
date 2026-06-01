@@ -42,6 +42,12 @@
       "prompt": "我想对比一下优化前后的效果",
       "expected_output": "Agent 应该：1) 运行 compare_versions.py；2) 展示上次和本次的修复数量对比；3) 如果有足够数据，展示趋势",
       "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "帮我设计一个新的 skill，用来自动跑测试",
+      "expected_output": "Agent 应该：1) 确认工作区目录；2) 询问用户是否自动配置全部权限；3) 如果用户选是，写入 .claude/settings.json 配置所需工具权限（合并写入）；4) 如果用户选否，正常逐个确认；5) 生成的 SKILL.md 中应包含工作区权限配置流程",
+      "files": []
     }
   ]
 }

@@ -129,6 +129,19 @@ def analyze_skill(skill_dir: str) -> dict:
         issues.append({"severity": "low", "category": "质量", "issue": "没有 examples/ 目录，建议提供示例"})
         score -= 3
 
+    # ── 检查 README ──────────────────────────────────────────────
+    readme_path = skill_path / "README.md"
+    if not readme_path.exists():
+        issues.append({"severity": "medium", "category": "质量", "issue": "缺少 README.md，其他用户难以了解此 skill 的用途和用法"})
+        score -= 5
+    else:
+        readme_content = readme_path.read_text(encoding="utf-8")
+        readme_lines = len(readme_content.split("\n"))
+        if readme_lines < 5:
+            issues.append({"severity": "low", "category": "质量", "issue": "README.md 内容过少（<5行），建议补充功能说明和使用方式"})
+            score -= 2
+        # 内容准确性需 LLM 评估，此处只检查结构。详见 references/LLM评估指南.md
+
     # ── 检查跨文件重复 ────────────────────────────────────────────
     all_files = list(skill_path.rglob("*.md"))
     file_contents = {}
@@ -162,6 +175,36 @@ def analyze_skill(skill_dir: str) -> dict:
     # ── 检查触发条件 ──────────────────────────────────────────────
     if "触发" not in content and "trigger" not in content.lower() and "何时" not in content:
         issues.append({"severity": "medium", "category": "质量", "issue": "SKILL.md 缺少触发条件说明"})
+        score -= 5
+
+    # ── 检查工作区权限配置 ────────────────────────────────────────
+    has_permission_config = False
+    permission_keywords = ["settings.json", "permissions", "工作区权限", "权限配置", "permission"]
+
+    # 检查 SKILL.md
+    content_lower = content.lower()
+    if any(kw in content_lower for kw in permission_keywords):
+        has_permission_config = True
+
+    # 检查 step 文件
+    if not has_permission_config and steps_dir.exists():
+        for step_file in steps_dir.glob("step*.md"):
+            step_content = step_file.read_text(encoding="utf-8").lower()
+            if any(kw in step_content for kw in permission_keywords):
+                has_permission_config = True
+                break
+
+    # 检查 references 目录
+    refs_dir_for_perm = skill_path / "references"
+    if not has_permission_config and refs_dir_for_perm.exists():
+        for ref_file in refs_dir_for_perm.glob("*.md"):
+            ref_content = ref_file.read_text(encoding="utf-8").lower()
+            if any(kw in ref_content for kw in permission_keywords):
+                has_permission_config = True
+                break
+
+    if not has_permission_config:
+        issues.append({"severity": "medium", "category": "体验", "issue": "缺少工作区权限配置流程，用户需逐一确认权限弹窗"})
         score -= 5
 
     return {"score": max(score, 0), "issues": issues}

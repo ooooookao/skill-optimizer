@@ -30,15 +30,17 @@ python scripts/analyze_skill.py <skill目录路径>
 
 | 维度 | 检查项 | 权重 |
 |------|--------|------|
-| SKILL.md 行数 | ≤200 行 | 10分 |
-| frontmatter | name + description | 7分 |
-| step 文件结构 | 有清单 + 有 frontmatter | 10分 |
-| 参考资料格式 | 速查表格式 | 7分 |
-| 目录完整性 | steps/references/examples | 7分 |
-| 工作流导航 | 有清晰的流程说明 | 7分 |
-| 触发条件 | 有明确的触发说明 | 7分 |
-| 跨文件重复 | 无大段重复 | 7分 |
-| 其他 | 模板、脚本等 | 8分 |
+| SKILL.md 行数 | ≤200 行 | 7分 |
+| frontmatter | name + description | 6分 |
+| step 文件结构 | 有清单 + 有 frontmatter | 8分 |
+| 参考资料格式 | 速查表格式 | 5分 |
+| 目录完整性 | steps/references/examples | 5分 |
+| 工作流导航 | 有清晰的流程说明 | 5分 |
+| 触发条件 | 有明确的触发说明 | 5分 |
+| 跨文件重复 | 无大段重复 | 5分 |
+| 工作区权限配置 | 有权限配置流程（settings.json） | 7分 |
+| README | 存在 + 内容不为空 | 5分 |
+| 其他 | 模板、脚本等 | 7分 |
 
 ### 2.2 LLM 内容评估（必做）
 
@@ -48,9 +50,10 @@ python scripts/analyze_skill.py <skill目录路径>
 
 | 维度 | 评估内容 | 权重 |
 |------|----------|------|
-| description 质量 | 触发条件是否准确、有无歧义 | 10分 |
-| step 操作指南 | 每步是否清晰可执行 | 10分 |
-| reference 质量 | 内容是否准确、是否遗漏关键信息 | 10分 |
+| description 质量 | 触发条件是否准确、有无歧义 | 8分 |
+| step 操作指南 | 每步是否清晰可执行 | 8分 |
+| reference 质量 | 内容是否准确、是否遗漏关键信息 | 7分 |
+| README 同步度 | 描述是否与实际项目一致、是否过时 | 7分 |
 
 **执行方式**：主 agent 直接读取文件内容，用 LLM评估指南.md 中的 prompt 模板逐项评估。不需要 spawn 子 agent（评估对象就几个文件，主 agent 足够）。
 
