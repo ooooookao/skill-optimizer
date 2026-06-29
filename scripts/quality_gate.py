@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """
-质量门禁脚本。
+质量门禁脚本（四态判定）。
 
 用法：
-  quality_gate.py <skill目录路径> [--config gate.json]
+  quality_gate.py <skill目录路径> [--config gate.json] [--content-score N] [--waive]
 
-检查 skill 是否满足通过条件。返回 exit code 0=通过, 1=不通过。
+四态判定：
+  PASS     — 全部检查通过
+  CONCERNS — 仅 low 级问题，无 critical/high
+  BLOCK    — 有 critical 或 high 问题
+  WAIVED   -- 用户主动豁免 BLOCK
+
+返回 exit code 0=PASS/CONCERNS/WAIVED, 1=BLOCK。
 
 默认门禁条件（可通过 --config 自定义）：
   - SKILL.md ≤ 200 行
@@ -45,11 +51,12 @@ def load_gate_config(config_path: str | None) -> dict:
     return DEFAULT_GATE
 
 
-def check_gate(skill_dir: str, gate: dict, content_score: int | None = None) -> dict:
-    """检查是否满足门禁条件。
+def check_gate(skill_dir: str, gate: dict, content_score: int | None = None, waive: bool = False) -> dict:
+    """检查是否满足门禁条件（四态判定）。
 
     Args:
         content_score: LLM 内容评估分数（满分 40）。如果提供，门禁检查合并分数。
+        waive: 用户主动豁免 BLOCK 状态。
     """
     result = analyze_skill(skill_dir)
     checks = []
@@ -167,37 +174,82 @@ def check_gate(skill_dir: str, gate: dict, content_score: int | None = None) -> 
                 passed = False
 
     max_score = 100 if content_score is not None else 60
-    return {"passed": passed, "score": total_score, "max_score": max_score, "structure_score": structure_score, "checks": checks}
+
+    # 四态判定
+    has_critical = any(i["severity"] == "critical" for i in result["issues"])
+    has_high = any(i["severity"] == "high" for i in result["issues"])
+
+    if passed:
+        status = "PASS"
+    elif has_critical or has_high:
+        if waive:
+            status = "WAIVED"
+        else:
+            status = "BLOCK"
+    else:
+        # 只有 low/medium 级问题
+        status = "CONCERNS"
+
+    return {
+        "passed": passed,
+        "status": status,
+        "score": total_score,
+        "max_score": max_score,
+        "structure_score": structure_score,
+        "checks": checks,
+        "issues": result["issues"],
+    }
 
 
 def format_report(gate_result: dict) -> str:
-    """格式化门禁报告。"""
+    """格式化门禁报告（四态）。"""
     lines = []
 
-    if gate_result["passed"]:
-        lines.append("门禁结果: 通过 [PASS]")
-    else:
-        lines.append("门禁结果: 不通过 [FAIL]")
+    status = gate_result.get("status", "PASS" if gate_result["passed"] else "BLOCK")
+    status_labels = {
+        "PASS": "通过 [PASS]",
+        "CONCERNS": "有警告 [CONCERNS]",
+        "BLOCK": "阻塞 [BLOCK]",
+        "WAIVED": "已豁免 [WAIVED]",
+    }
+    lines.append(f"门禁结果: {status_labels.get(status, status)}")
 
     max_score = gate_result.get("max_score", 100)
     lines.append(f"总分: {gate_result['score']}/{max_score}")
     lines.append("")
 
     for check in gate_result["checks"]:
-        status = "[PASS]" if check["passed"] else "[FAIL]"
-        lines.append(f"  {status} {check['name']}: {check['actual']}（要求 {check['condition']}）")
+        check_status = "[PASS]" if check["passed"] else "[FAIL]"
+        lines.append(f"  {check_status} {check['name']}: {check['actual']}（要求 {check['condition']}）")
+
+    # CONCERNS 时列出警告
+    if status == "CONCERNS":
+        lines.append("")
+        lines.append("警告项（不阻塞，建议修复）：")
+        for issue in gate_result.get("issues", []):
+            if issue["severity"] in ("low", "medium"):
+                lines.append(f"  - [{issue['category']}] {issue['issue']}")
+
+    # BLOCK 时列出阻塞项
+    if status == "BLOCK":
+        lines.append("")
+        lines.append("阻塞项（必须修复）：")
+        for issue in gate_result.get("issues", []):
+            if issue["severity"] in ("critical", "high"):
+                lines.append(f"  - [{issue['category']}] {issue['issue']}")
 
     return "\n".join(lines)
 
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("用法: quality_gate.py <skill目录路径> [--config gate.json] [--content-score N]")
+        print("用法: quality_gate.py <skill目录路径> [--config gate.json] [--content-score N] [--waive]")
         return 1
 
     skill_dir = sys.argv[1]
     config_path = None
     content_score = None
+    waive = "--waive" in sys.argv
 
     if "--config" in sys.argv:
         idx = sys.argv.index("--config")
@@ -214,10 +266,11 @@ def main() -> int:
         return 1
 
     gate = load_gate_config(config_path)
-    result = check_gate(skill_dir, gate, content_score)
+    result = check_gate(skill_dir, gate, content_score, waive=waive)
     print(format_report(result))
 
-    return 0 if result["passed"] else 1
+    # PASS/CONCERNS/WAIVED 返回 0，BLOCK 返回 1
+    return 0 if result["status"] in ("PASS", "CONCERNS", "WAIVED") else 1
 
 
 if __name__ == "__main__":

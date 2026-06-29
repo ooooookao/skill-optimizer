@@ -15,12 +15,14 @@ Skill 架构分析脚本。
   7. README.md 存在性
   8. 跨文件重复检测
   9. 工作流导航
-  10. 触发条件
+  10. 触发条件（有无）
   11. 强制拦截（Gate）
   12. 工作区权限配置
   13. 经验积累/学习机制
   14. 熔断机制
   15. 用户选择机制
+  16. 安全边界（敏感信息 + 高副作用操作 + 外部依赖）
+  17. 触发语义质量（description 是否精准、是否有中英文双语）
 """
 
 from __future__ import annotations
@@ -41,7 +43,7 @@ def analyze_skill(skill_dir: str) -> dict:
     # ── 检查目录结构 ──────────────────────────────────────────────
     skill_md = skill_path / "SKILL.md"
     if not skill_md.exists():
-        issues.append({"severity": "critical", "category": "架构", "issue": "缺少 SKILL.md"})
+        issues.append({"severity": "critical", "category": "结构规范", "issue": "缺少 SKILL.md"})
         return {"score": 0, "issues": issues}
 
     # ── 检查 SKILL.md ─────────────────────────────────────────────
@@ -51,22 +53,22 @@ def analyze_skill(skill_dir: str) -> dict:
 
     # 行数检查
     if line_count > 300:
-        issues.append({"severity": "high", "category": "架构", "issue": f"SKILL.md 有 {line_count} 行（建议 ≤200），应拆到 steps/"})
+        issues.append({"severity": "high", "category": "结构规范", "issue": f"SKILL.md 有 {line_count} 行（建议 ≤200），应拆到 steps/"})
         score -= 10
     elif line_count > 200:
-        issues.append({"severity": "medium", "category": "架构", "issue": f"SKILL.md 有 {line_count} 行（建议 ≤200），考虑精简"})
+        issues.append({"severity": "medium", "category": "结构规范", "issue": f"SKILL.md 有 {line_count} 行（建议 ≤200），考虑精简"})
         score -= 5
 
     # frontmatter 检查
     if not content.startswith("---"):
-        issues.append({"severity": "high", "category": "架构", "issue": "SKILL.md 缺少 frontmatter"})
+        issues.append({"severity": "high", "category": "结构规范", "issue": "SKILL.md 缺少 frontmatter"})
         score -= 10
     else:
         if "name:" not in content[:500]:
-            issues.append({"severity": "high", "category": "架构", "issue": "frontmatter 缺少 name 字段"})
+            issues.append({"severity": "high", "category": "结构规范", "issue": "frontmatter 缺少 name 字段"})
             score -= 5
         if "description:" not in content[:1000]:
-            issues.append({"severity": "high", "category": "架构", "issue": "frontmatter 缺少 description 字段"})
+            issues.append({"severity": "high", "category": "结构规范", "issue": "frontmatter 缺少 description 字段"})
             score -= 5
 
     # ── 检查 step 文件 ────────────────────────────────────────────
@@ -74,7 +76,7 @@ def analyze_skill(skill_dir: str) -> dict:
     if steps_dir.exists():
         step_files = list(steps_dir.glob("step*.md"))
         if not step_files:
-            issues.append({"severity": "medium", "category": "架构", "issue": "steps/ 目录为空"})
+            issues.append({"severity": "medium", "category": "结构规范", "issue": "steps/ 目录为空"})
             score -= 5
 
         for step_file in step_files:
@@ -82,17 +84,17 @@ def analyze_skill(skill_dir: str) -> dict:
 
             # 检查是否有执行清单
             if "- [ ]" not in step_content and "- [x]" not in step_content:
-                issues.append({"severity": "medium", "category": "架构", "issue": f"{step_file.name} 缺少执行清单"})
+                issues.append({"severity": "medium", "category": "结构规范", "issue": f"{step_file.name} 缺少执行清单"})
                 score -= 3
 
             # 检查是否有 frontmatter
             if not step_content.startswith("---"):
-                issues.append({"severity": "low", "category": "架构", "issue": f"{step_file.name} 缺少 frontmatter"})
+                issues.append({"severity": "low", "category": "结构规范", "issue": f"{step_file.name} 缺少 frontmatter"})
                 score -= 1
     else:
         # 没有 steps 目录，检查 SKILL.md 是否太长
         if line_count > 100:
-            issues.append({"severity": "medium", "category": "架构", "issue": "没有 steps/ 目录，且 SKILL.md 超过 100 行，建议拆分"})
+            issues.append({"severity": "medium", "category": "结构规范", "issue": "没有 steps/ 目录，且 SKILL.md 超过 100 行，建议拆分"})
             score -= 5
 
     # ── 检查 references ───────────────────────────────────────────
@@ -121,7 +123,7 @@ def analyze_skill(skill_dir: str) -> dict:
     if templates_dir.exists():
         template_files = list(templates_dir.glob("*"))
         if not template_files:
-            issues.append({"severity": "low", "category": "架构", "issue": "assets/templates/ 目录为空"})
+            issues.append({"severity": "low", "category": "结构规范", "issue": "assets/templates/ 目录为空"})
             score -= 2
 
     # ── 检查脚本 ──────────────────────────────────────────────────
@@ -129,25 +131,25 @@ def analyze_skill(skill_dir: str) -> dict:
     if scripts_dir.exists():
         script_files = list(scripts_dir.glob("*"))
         if not script_files:
-            issues.append({"severity": "low", "category": "架构", "issue": "scripts/ 目录为空"})
+            issues.append({"severity": "low", "category": "结构规范", "issue": "scripts/ 目录为空"})
             score -= 2
 
     # ── 检查范例 ──────────────────────────────────────────────────
     examples_dir = skill_path / "examples"
     if not examples_dir.exists():
-        issues.append({"severity": "low", "category": "质量", "issue": "没有 examples/ 目录，建议提供示例"})
+        issues.append({"severity": "low", "category": "结构规范", "issue": "没有 examples/ 目录，建议提供示例"})
         score -= 5
 
     # ── 检查 README ──────────────────────────────────────────────
     readme_path = skill_path / "README.md"
     if not readme_path.exists():
-        issues.append({"severity": "medium", "category": "质量", "issue": "缺少 README.md，其他用户难以了解此 skill 的用途和用法"})
+        issues.append({"severity": "medium", "category": "README", "issue": "缺少 README.md，其他用户难以了解此 skill 的用途和用法"})
         score -= 5
     else:
         readme_content = readme_path.read_text(encoding="utf-8")
         readme_lines = len(readme_content.split("\n"))
         if readme_lines < 5:
-            issues.append({"severity": "low", "category": "质量", "issue": "README.md 内容过少（<5行），建议补充功能说明和使用方式"})
+            issues.append({"severity": "low", "category": "README", "issue": "README.md 内容过少（<5行），建议补充功能说明和使用方式"})
             score -= 2
         # 内容准确性需 LLM 评估，此处只检查结构。详见 references/LLM评估指南.md
 
@@ -221,12 +223,12 @@ def analyze_skill(skill_dir: str) -> dict:
 
     # ── 检查工作流导航 ────────────────────────────────────────────
     if "步骤" not in content and "step" not in content.lower() and "流程" not in content:
-        issues.append({"severity": "medium", "category": "架构", "issue": "SKILL.md 缺少工作流导航"})
+        issues.append({"severity": "medium", "category": "结构规范", "issue": "SKILL.md 缺少工作流导航"})
         score -= 5
 
     # ── 检查触发条件 ──────────────────────────────────────────────
     if "触发" not in content and "trigger" not in content.lower() and "何时" not in content:
-        issues.append({"severity": "medium", "category": "质量", "issue": "SKILL.md 缺少触发条件说明"})
+        issues.append({"severity": "medium", "category": "语义边界", "issue": "SKILL.md 缺少触发条件说明"})
         score -= 5
 
     # ── 检查强制拦截（Gate） ─────────────────────────────────────
@@ -241,7 +243,7 @@ def analyze_skill(skill_dir: str) -> dict:
                 break
 
     if not has_gate:
-        issues.append({"severity": "low", "category": "体验", "issue": "step 文件缺少强制拦截（Gate），agent 可能跳步"})
+        issues.append({"severity": "low", "category": "结构规范", "issue": "step 文件缺少强制拦截（Gate），agent 可能跳步"})
         score -= 3
 
     # ── 检查工作区权限配置 ────────────────────────────────────────
@@ -271,7 +273,7 @@ def analyze_skill(skill_dir: str) -> dict:
                 break
 
     if not has_permission_config:
-        issues.append({"severity": "medium", "category": "体验", "issue": "缺少工作区权限配置流程，用户需逐一确认权限弹窗"})
+        issues.append({"severity": "medium", "category": "工作区权限", "issue": "缺少工作区权限配置流程，用户需逐一确认权限弹窗"})
         score -= 5
 
     # ── 检查经验积累/学习机制 ─────────────────────────────────────
@@ -326,7 +328,7 @@ def analyze_skill(skill_dir: str) -> dict:
                 break
 
     if not has_learning:
-        issues.append({"severity": "low", "category": "质量", "issue": "缺少经验积累机制，skill 无法越用越聪明"})
+        issues.append({"severity": "low", "category": "经验积累", "issue": "缺少经验积累机制，skill 无法越用越聪明"})
         score -= 3
 
     # ── 检查熔断机制 ─────────────────────────────────────────────
@@ -351,7 +353,7 @@ def analyze_skill(skill_dir: str) -> dict:
                 break
 
     if not has_circuit_breaker:
-        issues.append({"severity": "medium", "category": "质量", "issue": "缺少熔断机制，失败时可能无限重试"})
+        issues.append({"severity": "medium", "category": "熔断机制", "issue": "缺少熔断机制，失败时可能无限重试"})
         score -= 5
 
     # ── 检查用户选择机制 ─────────────────────────────────────────
@@ -369,8 +371,106 @@ def analyze_skill(skill_dir: str) -> dict:
                 break
 
     if not has_user_choice:
-        issues.append({"severity": "medium", "category": "体验", "issue": "缺少用户选择机制，策略性决策未交给用户"})
+        issues.append({"severity": "medium", "category": "用户交互", "issue": "缺少用户选择机制，策略性决策未交给用户"})
         score -= 5
+
+    # ── 检查安全边界（第 16 项）──────────────────────────────────────
+    # 16a. 敏感信息泄露
+    secret_patterns = [
+        (r'sk-[a-zA-Z0-9]{20,}', '疑似 OpenAI API Key'),
+        (r'ghp_[a-zA-Z0-9]{36,}', '疑似 GitHub Personal Access Token'),
+        (r'Bearer [a-zA-Z0-9_\-\.]{20,}', '疑似 Bearer Token'),
+        (r'password\s*[:=]\s*["\'][^"\']{6,}', '疑似硬编码密码'),
+        (r'api[_-]?key\s*[:=]\s*["\'][^"\']{10,}', '疑似硬编码 API Key'),
+        (r'secret[_-]?key\s*[:=]\s*["\'][^"\']{10,}', '疑似硬编码 Secret Key'),
+        (r'token\s*[:=]\s*["\'][a-zA-Z0-9_\-\.]{20,}', '疑似硬编码 Token'),
+    ]
+    all_md_files = list(skill_path.rglob("*.md"))
+    for md_file in all_md_files:
+        try:
+            md_content = md_file.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        for pattern, desc in secret_patterns:
+            if re.search(pattern, md_content, re.IGNORECASE):
+                issues.append({"severity": "critical", "category": "安全边界", "issue": f"{md_file.name} 中发现{desc}"})
+                score -= 15
+                break  # 每个文件只报一次
+
+    # 16b. 高副作用操作无确认提示
+    danger_commands = [
+        (r'rm\s+-rf', 'rm -rf'),
+        (r'git\s+push\s+--force', 'git push --force'),
+        (r'DROP\s+TABLE', 'DROP TABLE'),
+        (r'DELETE\s+FROM', 'DELETE FROM'),
+        (r'git\s+reset\s+--hard', 'git reset --hard'),
+    ]
+    confirm_keywords = ["确认", "confirm", "二次确认", "用户确认", "询问用户", "让用户", "⚠️"]
+    for md_file in all_md_files:
+        try:
+            md_content = md_file.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        md_lower = md_content.lower()
+        for pattern, cmd_name in danger_commands:
+            if re.search(pattern, md_content, re.IGNORECASE):
+                # 检查同一文件中是否有确认提示
+                if not any(kw in md_lower for kw in confirm_keywords):
+                    issues.append({"severity": "high", "category": "安全边界", "issue": f"{md_file.name} 包含 '{cmd_name}' 但无确认提示"})
+                    score -= 8
+
+    # 16c. 外部依赖无安装命令
+    dep_patterns = [
+        (r'npx\s+skills\s+', 'npx skills'),
+        (r'pip\s+install', 'pip install'),
+        (r'npm\s+install', 'npm install'),
+        (r'apt\s+install', 'apt install'),
+        (r'brew\s+install', 'brew install'),
+        (r'cargo\s+install', 'cargo install'),
+    ]
+    install_keywords = ["install", "安装", "setup", "配置", "前置", "依赖", "pip install", "npm install", "npx"]
+    for md_file in all_md_files:
+        try:
+            md_content = md_file.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        md_lower = md_content.lower()
+        for pattern, dep_name in dep_patterns:
+            if re.search(pattern, md_content, re.IGNORECASE):
+                # 检查是否有安装说明（在同文件或 README 中）
+                has_install = any(kw in md_lower for kw in install_keywords)
+                if not has_install:
+                    issues.append({"severity": "low", "category": "安全边界", "issue": f"{md_file.name} 使用了 '{dep_name}' 但未说明安装方式"})
+                    score -= 2
+
+    # ── 检查触发语义质量（第 17 项）────────────────────────────────
+    if content.startswith("---"):
+        fm_end = content.find("---", 3)
+        if fm_end > 0:
+            frontmatter = content[3:fm_end]
+            # 17a. 检查 description 是否有具体触发关键词
+            if "description:" in frontmatter:
+                desc_match = re.search(r'description:\s*>?\s*\n?(.*?)(?:\n\w|\Z)', frontmatter, re.DOTALL)
+                if not desc_match:
+                    desc_match = re.search(r'description:\s*(.+)', frontmatter)
+                if desc_match:
+                    desc_text = desc_match.group(1).strip()
+                    # 检查是否有触发关键词（引号中的具体短语）
+                    has_specific_triggers = bool(re.search(r'["\'].*?["\']', desc_text))
+                    # 检查是否有泛泛描述（只有抽象概念）
+                    vague_words = ["分析", "优化", "检查", "生成", "处理", "管理", "创建"]
+                    specific_words = ["当用户", "触发", "trigger", "关键词", "说"]
+                    has_vague = any(w in desc_text for w in vague_words)
+                    has_specific = any(w in desc_text for w in specific_words) or has_specific_triggers
+                    if has_vague and not has_specific:
+                        issues.append({"severity": "medium", "category": "触发语义质量", "issue": "description 只有泛泛描述，缺少具体触发关键词"})
+                        score -= 3
+                    # 17b. 检查是否有中英文双语触发
+                    has_chinese = bool(re.search(r'[一-鿿]', desc_text))
+                    has_english = bool(re.search(r'[a-zA-Z]{3,}', desc_text))
+                    if has_chinese and not has_english:
+                        issues.append({"severity": "low", "category": "触发语义质量", "issue": "触发条件只有中文，建议补充英文触发词"})
+                        score -= 1
 
     return {"score": max(score, 0), "issues": issues}
 
